@@ -1,0 +1,5 @@
+# all time values in seconds
+username = ""
+workTimer = 10
+breakTimer = 10
+domains = ["www.reddit.com", "www.youtube.com"]
