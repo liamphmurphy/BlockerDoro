@@ -12,3 +12,7 @@ Set the path to your local config directory at the top of the main func in `main
 `sudo go run *.go`
 
 **NOTE:** As of now, root is required since the program directly interfaces with `/etc/hosts`. I'm hoping to figure out a way around this, or at least restricting the privileges this program has.
+
+# Trello Board
+
+I'm testing out using Trello to scope out / gather my thoughts for this project, it's a new thing for me, so I'm curious to see how it goes. If you want to see the board, go [here](https://trello.com/b/27ex4Tzu/blockerdoro).
