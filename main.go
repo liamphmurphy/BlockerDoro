@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -11,14 +12,29 @@ func main() {
 	var err error
 
 	// load config data
-	err = conf.setup()
+	err = conf.setup("./config")
+	if err != nil {
+		e, ok := err.(*FirstRunError)
+		if ok {
+			fmt.Fprintf(os.Stdout, e.Error())
+			os.Exit(0)
+		}
+		fmt.Fprintf(os.Stderr, "error setting up blockerdoro: %s\n", err)
+		os.Exit(1)
+	}
+
+	// setup Hosts struct
+	var hosts Hosts
+	err = hosts.setup("./backups")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error setting up blockerdoro: %s\n", err)
 		os.Exit(1)
 	}
 
+	conf.Hosts = hosts
+
 	// generate list of domains to block
-	newHosts, err := GetNewHostsFile(string(conf.Hosts.Text))
+	newHosts, err := GetNewHostsFile(strings.Join(conf.Domains, "\n"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error obtaining values for the new domains: %s\n", err)
 		os.Exit(1)
@@ -34,7 +50,7 @@ func main() {
 		}
 
 		fmt.Println("Beginning work period timer")
-		time.Sleep(time.Second * 10)
+		time.Sleep(time.Minute * time.Duration(conf.WorkTimer))
 
 		// get the content of the original hosts file
 		oldHosts, err := ReadFile(conf.Hosts.OriginalPath)
@@ -51,6 +67,6 @@ func main() {
 		}
 
 		fmt.Println("Beginning break period timer")
-		time.Sleep(time.Second * 10)
+		time.Sleep(time.Minute * time.Duration(conf.BreakTimer))
 	}
 }

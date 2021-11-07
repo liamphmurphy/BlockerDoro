@@ -9,46 +9,74 @@ import (
 )
 
 type Config struct {
-	configFile      string // path to the TOML config file
-	LocalConfigPath string
-	Hosts           Hosts
+	configFile string   // path to the TOML config file
+	Domains    []string `mapstructure:"domains"`
+	WorkTimer  int      `mapstructure:"worktimer"`
+	BreakTimer int      `mapstructure:"breaktimer"`
+	Hosts      Hosts
 }
 
-// setup will prepare the config structure for blockerdoro
-func (c *Config) setup() error {
-	c.LocalConfigPath = fmt.Sprintf("%s/blockerdoro", c.LocalConfigPath)
-	if _, err := os.Stat(c.LocalConfigPath); errors.Is(err, os.ErrNotExist) {
-		os.Mkdir(c.LocalConfigPath, 0755)
+// FirstRunError usage indicates a special error relating to running BlockerDoro for the first time, not considered fatal.
+// For example, this "error" is used when the config.toml file is written for the first time and requires manual editing before BlockerDoro is useful.
+type FirstRunError struct {
+	Err error
+}
+
+func (e *FirstRunError) Error() string {
+	return e.Err.Error()
+}
+
+// setup will prepare the config structure for blockerdoro. The bool indicates success or failure
+func (c *Config) setup(configDir string) error {
+	if _, err := os.Stat(configDir); errors.Is(err, os.ErrNotExist) {
+		os.Mkdir(configDir, 0755)
 	}
 
 	// prepare config.toml file
-	c.configFile = fmt.Sprintf("%s/config.toml", c.LocalConfigPath)
-	if _, err := os.Stat(c.LocalConfigPath); errors.Is(err, os.ErrNotExist) {
-		var username string
-		fmt.Println("Detected that this is the first run of this program. Please enter the username of your current OS user:")
-		fmt.Scanln(&username)
+	c.configFile = fmt.Sprintf("%s/config.toml", configDir)
+	if _, err := os.Stat(c.configFile); errors.Is(err, os.ErrNotExist) {
 		err := writeConfigDefaults(c.configFile)
 		if err != nil {
 			return fmt.Errorf("error creating the user's default config.toml file: %s", err)
 		}
-		return fmt.Errorf("%s was not created. Please edit this file manually with your desired config values", c.configFile)
+
+		return &FirstRunError{
+			Err: fmt.Errorf("first time setup detected, please update %s manually\n", c.configFile),
+		}
 	}
 
-	// setup Hosts struct
-	var hosts Hosts
-	err := hosts.setup(c.LocalConfigPath)
+	err := c.populateConfig()
 	if err != nil {
-		return fmt.Errorf("error setting up hosts struct: %s", err)
+		return fmt.Errorf("error populating the config struct: %s", err)
+	}
+
+	return nil
+}
+
+// popualteConfig will attempt to read in the local config file, and will update the associated Config struct accordingly if successful.
+// This probably won't be unit tested, as that would mean just basically testing the viper library, which is out of scope.
+func (c *Config) populateConfig() error {
+	v := viper.New()
+	v.SetConfigFile(c.configFile)
+	if err := v.ReadInConfig(); err != nil {
+		return err
+	}
+
+	err := v.Unmarshal(c)
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
 // writeConfigDefaults writes the default.toml file to the user's config.toml file. This is usually run when no config.toml file for the user exists.
-func writeConfigDefaults(path string, username string) error {
-	viper.ReadInConfig()
+func writeConfigDefaults(path string) error {
+	viper.SetDefault("workTimer", 20)
+	viper.SetDefault("breakTimer", 5)
+	viper.SetDefault("domains", []string{})
 
-	err = WriteFile(string(defaultValues), path)
+	err := viper.WriteConfigAs(path)
 	if err != nil {
 		return err
 	}
