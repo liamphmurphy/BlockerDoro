@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -16,7 +15,7 @@ func main() {
 	if err != nil {
 		e, ok := err.(*FirstRunError)
 		if ok {
-			fmt.Fprintf(os.Stdout, e.Error())
+			fmt.Fprint(os.Stdout, e.Error())
 			os.Exit(0)
 		}
 		fmt.Fprintf(os.Stderr, "error setting up blockerdoro: %s\n", err)
@@ -34,7 +33,7 @@ func main() {
 	conf.Hosts = hosts
 
 	// generate list of domains to block
-	newHosts, err := GetNewHostsFile(strings.Join(conf.Domains, "\n"))
+	domains, err := CreateHosts(conf.Domains)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error obtaining values for the new domains: %s\n", err)
 		os.Exit(1)
@@ -43,7 +42,7 @@ func main() {
 	// begin the timer loop
 	for {
 		// write the new domains to the hosts file
-		err = WriteFile(newHosts, conf.Hosts.Path)
+		err = WriteFile(domains, conf.Hosts.Path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error writing new hosts file: %s\n", err)
 			os.Exit(1)

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 )
 
 type Hosts struct {
@@ -11,7 +12,6 @@ type Hosts struct {
 	Path         string
 	CopyPath     string
 	BackupPath   string
-	Text         []byte
 }
 
 // BackupHosts backs up the currently existing hosts file
@@ -20,7 +20,6 @@ func (h *Hosts) BackupHosts(path string) error {
 	if err != nil {
 		return fmt.Errorf("error reading %s: %w", h.Path, err)
 	}
-	h.Text = hostsCopy
 
 	err = os.WriteFile(h.CopyPath, hostsCopy, 0644)
 	if err != nil {
@@ -61,12 +60,22 @@ func ReadFile(path string) ([]byte, error) {
 	return text, nil
 }
 
-// WriteFile acts as a general method for writing what is in "contents" to a file.
-func WriteFile(contents string, path string) error {
-	err := os.WriteFile(path, []byte(contents), 0644)
-	if err != nil {
-		return err
+// CreateHosts takes in a raw list of domains and generates a valid hosts file with 0.0.0.0 redirects.
+// This func does not do the file writing, that needs to be called after this.
+func CreateHosts(domains []string) (string, error) {
+	if len(domains) == 0 {
+		return "", fmt.Errorf("the provided domains list is empty")
 	}
 
-	return nil
+	var newDomains []string
+	for _, domain := range domains {
+		newDomains = append(newDomains, fmt.Sprintf("0.0.0.0 %s", domain))
+	}
+
+	return strings.Join(newDomains, "\n"), nil
+}
+
+// WriteFile acts as a general method for writing what is in "contents" to a file.
+func WriteFile(contents string, path string) error {
+	return os.WriteFile(path, []byte(contents), 0644)
 }

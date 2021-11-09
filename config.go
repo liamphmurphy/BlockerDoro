@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 )
 
 type Config struct {
 	configFile string   // path to the TOML config file
-	Domains    []string `mapstructure:"domains"`
-	WorkTimer  int      `mapstructure:"worktimer"`
-	BreakTimer int      `mapstructure:"breaktimer"`
+	Domains    []string `toml:"domains"`
+	WorkTimer  int      `toml:"worktimer"`
+	BreakTimer int      `toml:"breaktimer"`
 	Hosts      Hosts
 }
 
@@ -41,23 +42,39 @@ func (c *Config) setup(configDir string) error {
 		}
 
 		return &FirstRunError{
-			Err: fmt.Errorf("first time setup detected, please update %s manually\n", c.configFile),
+			Err: fmt.Errorf("first time setup detected, please update %s manually", c.configFile),
 		}
 	}
 
-	err := c.populateConfig()
+	v := viper.New()
+	v.SetConfigFile(c.configFile)
+	err := c.populateConfig(v)
 	if err != nil {
 		return fmt.Errorf("error populating the config struct: %s", err)
 	}
+
+	// setup logic for what to do on a live config change
+	v.OnConfigChange(func(e fsnotify.Event) {
+		// For some reason, when a config changes reduces in FEWER domains to block, if we don't clear out the original list, it won't remove domains accordingly.
+		c.Domains = []string{}
+
+		c.populateConfig(v) // update with the new values
+		domains, _ := CreateHosts(c.Domains)
+		fmt.Println(domains, c.Hosts.Path)
+		err := WriteFile(domains, c.Hosts.Path)
+		if err != nil {
+			fmt.Printf("attempted to write new hosts on config change but failed due to: %s", err)
+		}
+
+	})
+	v.WatchConfig()
 
 	return nil
 }
 
 // popualteConfig will attempt to read in the local config file, and will update the associated Config struct accordingly if successful.
 // This probably won't be unit tested, as that would mean just basically testing the viper library, which is out of scope.
-func (c *Config) populateConfig() error {
-	v := viper.New()
-	v.SetConfigFile(c.configFile)
+func (c *Config) populateConfig(v *viper.Viper) error {
 	if err := v.ReadInConfig(); err != nil {
 		return err
 	}
